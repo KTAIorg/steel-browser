@@ -1,12 +1,15 @@
 name: Automatic Release
 
+# KT fork: disabled — version tags are managed by the KT release process
+# (see kt-build-image.yml). Kept for upstream merge fidelity.
 on:
   push:
     branches:
-      - main
+      - kt-never
 
 jobs:
   release:
+    if: ${{ false }}
     runs-on: ubuntu-latest
     permissions:
       contents: write

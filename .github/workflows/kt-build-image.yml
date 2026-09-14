@@ -1,0 +1,119 @@
+# KT fork image build → GHCR + container smoke test.
+# Action versions pinned to latest stable majors, verified 2026-09-14
+# (actions/checkout v7.0.1, docker/setup-buildx-action v4.3.0,
+#  docker/login-action v4.6.0, docker/build-push-action v7.3.0).
+name: kt-build-image
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ktaiorg/steel-browser
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4.3.0
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v4.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive image tags
+        id: meta
+        run: |
+          SHA12=$(echo "${{ github.sha }}" | cut -c1-12)
+          UPSTREAM_VERSION=$(node -p "require('./package.json').version")
+          VERSION="${UPSTREAM_VERSION}-kt1"
+          TAGS=""
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            TAGS="${REGISTRY}/${IMAGE_NAME}:${VERSION}"
+            TAGS="${TAGS},${REGISTRY}/${IMAGE_NAME}:sha-${SHA12}"
+            TAGS="${TAGS},${REGISTRY}/${IMAGE_NAME}:latest"
+          else
+            TAGS="${REGISTRY}/${IMAGE_NAME}:pr-${{ github.event.number || github.run_number }}"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "sha12=${SHA12}" >> "$GITHUB_OUTPUT"
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push image
+        id: build
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: .
+          file: ./Dockerfile
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          # provenance manifests have caused GHCR push 403s with org-level
+          # GITHUB_TOKEN in other KT repos; disable until verified here.
+          provenance: false
+          sbom: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  smoke:
+    # Container-level acceptance: boot the image, wait for /health, and verify
+    # the CDP gateway refuses unauthenticated enumeration when CDP_TOKEN is set.
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4.3.0
+
+      - name: Build image locally
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: .
+          file: ./Dockerfile
+          load: true
+          tags: steel-browser-smoke:${{ github.sha }}
+          provenance: false
+          sbom: false
+          cache-from: type=gha
+
+      - name: Run container and probe
+        run: |
+          docker run -d --name smoke --shm-size=1g \
+            -p 3000:3000 -p 9223:9223 \
+            -e CDP_TOKEN=smoke-token \
+            steel-browser-smoke:${{ github.sha }}
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:3000/health >/dev/null 2>&1; then
+              echo "health OK after ${i}s"; break
+            fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3000/health
+          echo
+          echo "-- /json/list without token (expect 401) --"
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:9223/json/list)
+          echo "status=${CODE}"; [ "$CODE" = "401" ]
+          echo "-- /json/list with token (expect 200 and target filtering) --"
+          curl -fsS -H 'x-cdp-token: smoke-token' http://127.0.0.1:9223/json/list | tee /tmp/list.json
+          echo
+          [ "$(wc -c < /tmp/list.json)" -ge 2 ]
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: docker logs smoke || true

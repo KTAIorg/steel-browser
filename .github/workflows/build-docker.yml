@@ -1,12 +1,15 @@
 name: Build and Push Latest Docker Image to GHCR
 
+# KT fork: disabled — image publishing is owned by kt-build-image.yml (GHCR
+# ktaiorg/steel-browser). Kept for upstream merge fidelity instead of deleting.
 on:
   push:
     branches:
-      - main
+      - kt-never
 
 jobs:
   push_to_registry:
+    if: ${{ false }}
     name: Build and Push Latest Docker Image to GHCR
     runs-on: ubuntu-latest
     steps:

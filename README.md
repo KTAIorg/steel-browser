@@ -1,3 +1,26 @@
+<!-- KT FORK NOTICE (KTAIorg/steel-browser) ───────────────────────────────
+Upstream: steel-dev/steel-browser (Apache-2.0). Fork baseline: upstream/main
+2b41124d8e2953b0afe355c534e3c9aa71edae26 (2026-09-02). See
+docs/development/upstream-sync-policy.md for the sync cadence (monthly or per
+upstream release) and the KT customization whitelist.
+
+KT patches on top of upstream:
+  1. CDP exposure hardening: /json/list no longer enumerates other sessions'
+     targets. Port 9223 is served by a session-scoped gateway instead of nginx
+     passthrough; set CDP_TOKEN to require authentication (header
+     `x-cdp-token` or `?token=`). Chrome's DevTools socket binds to loopback
+     when CDP_ALLOW_LOOPBACK_ONLY=true. See api/src/services/cdp-gateway.service.ts.
+  2. userDataDir precedence fix: a caller-provided userDataDir is honored
+     instead of being silently overridden by the built-in persist directory.
+  3. REST create-session accepts a pre-generated `fingerprint` object so a
+     specific identity can be pinned per session (service layer already
+     supported it; the HTTP schema did not expose it).
+  4. Multi-session-per-container is intentionally NOT enabled; scaling is by
+     container replicas. Rationale and target design: docs/MULTI_SESSION_ROADMAP.md.
+
+Image: ghcr.io/ktaiorg/steel-browser (tags: <upstream-version>-kt<n> and sha-<12>).
+────────────────────────────────────────────────────────────────────────── -->
+
 <br />
 <p align="center">
 <a href="https://steel.dev">
