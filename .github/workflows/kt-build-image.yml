@@ -8,6 +8,12 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      push_image:
+        description: "Push the built image to GHCR"
+        type: boolean
+        default: false
 
 env:
   REGISTRY: ghcr.io
@@ -43,13 +49,20 @@ jobs:
           UPSTREAM_VERSION=$(node -p "require('./package.json').version")
           VERSION="${UPSTREAM_VERSION}-kt1"
           TAGS=""
+          PUSH="false"
           if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            PUSH="true"
             TAGS="${REGISTRY}/${IMAGE_NAME}:${VERSION}"
             TAGS="${TAGS},${REGISTRY}/${IMAGE_NAME}:sha-${SHA12}"
             TAGS="${TAGS},${REGISTRY}/${IMAGE_NAME}:latest"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.push_image }}" = "true" ]; then
+            PUSH="true"
+            TAGS="${REGISTRY}/${IMAGE_NAME}:${VERSION}"
+            TAGS="${TAGS},${REGISTRY}/${IMAGE_NAME}:sha-${SHA12}"
           else
             TAGS="${REGISTRY}/${IMAGE_NAME}:pr-${{ github.event.number || github.run_number }}"
           fi
+          echo "push=${PUSH}" >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "sha12=${SHA12}" >> "$GITHUB_OUTPUT"
           echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
@@ -60,7 +73,7 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
-          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          push: ${{ steps.meta.outputs.push == 'true' }}
           tags: ${{ steps.meta.outputs.tags }}
           # provenance manifests have caused GHCR push 403s with org-level
           # GITHUB_TOKEN in other KT repos; disable until verified here.
