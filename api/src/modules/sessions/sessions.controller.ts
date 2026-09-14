@@ -1,5 +1,6 @@
 import { CDPService } from "../../services/cdp/cdp.service.js";
 import { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { BrowserFingerprintWithHeaders } from "fingerprint-generator";
 import { getErrors } from "../../utils/errors.js";
 import { CreateSessionRequest, SessionDetails, SessionStreamRequest } from "./sessions.schema.js";
 import { CookieData } from "../../services/context/types.js";
@@ -28,6 +29,7 @@ export const handleLaunchBrowserSession = async (
       extra,
       credentials,
       skipFingerprintInjection,
+      fingerprint,
       userPreferences,
       deviceConfig,
       headless,
@@ -53,6 +55,7 @@ export const handleLaunchBrowserSession = async (
       extra,
       credentials,
       skipFingerprintInjection,
+      fingerprint: fingerprint as BrowserFingerprintWithHeaders | undefined,
       userPreferences,
       deviceConfig,
       headless,
