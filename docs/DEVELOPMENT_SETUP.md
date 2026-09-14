@@ -219,6 +219,14 @@ HOST=0.0.0.0
 PORT=3000
 CDP_REDIRECT_PORT=9223
 
+# KT fork: the CDP gateway refuses to start without CDP_TOKEN. For local
+# development set the anonymous escape hatch instead -- it serves the CDP
+# surface on 127.0.0.1 only. Do NOT carry either line into production:
+# production must set CDP_TOKEN (from KTSecret) and leave
+# CDP_ALLOW_ANONYMOUS unset.
+CDP_ALLOW_ANONYMOUS=true
+# CDP_TOKEN=
+
 # Chrome Configuration
 CHROME_HEADLESS=false  # Set to true for headless mode
 CHROME_EXECUTABLE_PATH=/usr/bin/google-chrome  # Adjust path as needed
