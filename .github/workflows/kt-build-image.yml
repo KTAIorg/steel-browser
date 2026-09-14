@@ -112,12 +112,12 @@ jobs:
             -e CDP_TOKEN=smoke-token \
             steel-browser-smoke:${{ github.sha }}
           for i in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:3000/health >/dev/null 2>&1; then
+            if curl -fsS http://127.0.0.1:3000/v1/health >/dev/null 2>&1; then
               echo "health OK after ${i}s"; break
             fi
             sleep 1
           done
-          curl -fsS http://127.0.0.1:3000/health
+          curl -fsS http://127.0.0.1:3000/v1/health
           echo
           echo "-- /json/list without token (expect 401) --"
           CODE=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:9223/json/list)
