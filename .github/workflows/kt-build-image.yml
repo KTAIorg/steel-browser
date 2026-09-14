@@ -119,8 +119,14 @@ jobs:
           done
           curl -fsS http://127.0.0.1:3000/v1/health
           echo
+          # The gateway starts after the browser launch inside onListen; wait
+          # for port 9223 to accept connections before asserting.
+          for i in $(seq 1 60); do
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:9223/json/list)
+            [ "$CODE" != "000" ] && break
+            sleep 1
+          done
           echo "-- /json/list without token (expect 401) --"
-          CODE=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:9223/json/list)
           echo "status=${CODE}"; [ "$CODE" = "401" ]
           echo "-- /json/list with token (expect 200 and target filtering) --"
           curl -fsS -H 'x-cdp-token: smoke-token' http://127.0.0.1:9223/json/list | tee /tmp/list.json
