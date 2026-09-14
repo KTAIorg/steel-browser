@@ -83,10 +83,17 @@ jobs:
           cache-to: type=gha,mode=max
 
   smoke:
-    # Container-level acceptance: boot the image, wait for /health, and verify
-    # the CDP gateway refuses unauthenticated enumeration when CDP_TOKEN is set.
+    # Container-level acceptance. Verifies all three gateway configurations:
+    # no CDP_TOKEN => the process refuses to start; CDP_TOKEN set => 401 without
+    # the token, session-scoped /json/list with a clean allowlist projection, and
+    # real WS handshakes on /devtools/browser and /devtools/page/<id>;
+    # CDP_ALLOW_ANONYMOUS=true => serves on container loopback only, unreachable
+    # through the published port. Assertions parse response bodies (see
+    # .github/scripts/kt-cdp-smoke.sh).
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Check out the repo
         uses: actions/checkout@v7.0.1
@@ -105,34 +112,15 @@ jobs:
           sbom: false
           cache-from: type=gha
 
-      - name: Run container and probe
-        run: |
-          docker run -d --name smoke --shm-size=1g \
-            -p 3000:3000 -p 9223:9223 \
-            -e CDP_TOKEN=smoke-token \
-            steel-browser-smoke:${{ github.sha }}
-          for i in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:3000/v1/health >/dev/null 2>&1; then
-              echo "health OK after ${i}s"; break
-            fi
-            sleep 1
-          done
-          curl -fsS http://127.0.0.1:3000/v1/health
-          echo
-          # The gateway starts after the browser launch inside onListen; wait
-          # for port 9223 to accept connections before asserting.
-          for i in $(seq 1 60); do
-            CODE=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:9223/json/list || true)
-            [ "$CODE" != "000" ] && [ -n "$CODE" ] && break
-            sleep 1
-          done
-          echo "-- /json/list without token (expect 401) --"
-          echo "status=${CODE}"; [ "$CODE" = "401" ]
-          echo "-- /json/list with token (expect 200 and target filtering) --"
-          curl -fsS -H 'x-cdp-token: smoke-token' http://127.0.0.1:9223/json/list | tee /tmp/list.json
-          echo
-          [ "$(wc -c < /tmp/list.json)" -ge 2 ]
+      - name: Run CDP gateway smoke
+        env:
+          IMAGE: steel-browser-smoke:${{ github.sha }}
+        run: ./.github/scripts/kt-cdp-smoke.sh
 
       - name: Dump container logs on failure
         if: failure()
-        run: docker logs smoke || true
+        run: |
+          for c in smoke-notoken smoke-token smoke-anon; do
+            echo "===== ${c} ====="
+            docker logs "${c}" 2>&1 || true
+          done

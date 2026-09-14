@@ -36,9 +36,9 @@
 
 - [ ] `npm ci && npm run build`（根 workspace：api + ui）
 - [ ] `npm test`（api：vitest）
-- [ ] CDP 网关行为回归：带/不带 CDP_TOKEN 的 `/json/list` 过滤与 401/403/405
+- [ ] CDP 网关行为回归：无 CDP_TOKEN 时拒绝启动（`CDP_ALLOW_ANONYMOUS=true` 则仅绑回环）、带/不带 token 的 `/json/list` 过滤与 401/403/405、`devtoolsFrontendUrl` 不泄露
 - [ ] userDataDir 优先级回归（session.service.test.ts）
-- [ ] 镜像 smoke：`docker run` 后 `/health` 200、`/json/list`（带 token）仅本会话 targets
+- [ ] 镜像 smoke：`.github/scripts/kt-cdp-smoke.sh`（`/v1/health` 200、无 token 拒绝启动、带 token `/json/list` 仅本会话 targets 且为白名单投影、`/devtools/browser` 与 `/devtools/page/<id>` 真实握手 101、外部 target 403）
 - [ ] 上游安全 fix 确认已含
 
 ## 同步记录
