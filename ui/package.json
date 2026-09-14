@@ -39,7 +39,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hook-form": "^7.53.0",
-    "react-router-dom": "^6.16.0",
+    "react-router-dom": "^7.18.3",
     "react-top-loading-bar": "^2.3.1",
     "rrweb-player": "^1.0.0-alpha.4",
     "serve": "^14.0.1",
@@ -51,7 +51,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@hey-api/openapi-ts": "^0.53.6",
+    "@hey-api/openapi-ts": "^0.97.3",
     "@swc/cli": "^0.6.0",
     "@swc/core": "^1.10.18",
     "@types/node": "^20.8.4",
