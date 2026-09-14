@@ -70,6 +70,23 @@ const envSchema = z.object({
     .default("false"),
   PROXY_INTERNAL_BYPASS: z.string().optional(),
   CHROME_USER_DATA_DIR: z.string().optional(),
+  CDP_TOKEN: z.string().optional(),
+  // Escape hatch for single-tenant local use. Without CDP_TOKEN the CDP
+  // gateway refuses to start unless this is true, and then binds loopback only.
+  CDP_ALLOW_ANONYMOUS: z
+    .string()
+    .optional()
+    .transform((val) => val === "true" || val === "1")
+    .default("false"),
+  // Chrome's own DevTools socket is an unauthenticated, unfiltered, full-
+  // privilege surface, so loopback is the safe default; the public CDP surface
+  // is the session-scoped gateway on CDP_REDIRECT_PORT. Set false only when
+  // something outside the container must reach 9222 directly.
+  CDP_ALLOW_LOOPBACK_ONLY: z
+    .string()
+    .optional()
+    .transform((val) => val === "true" || val === "1")
+    .default("true"),
   LOG_STORAGE_ENABLED: z
     .string()
     .optional()

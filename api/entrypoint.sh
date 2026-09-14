@@ -83,7 +83,7 @@ start_nginx() {
         log "ERROR: Nginx failed to start properly"
         return 1
     else
-        log "Skipping nginx startup (--no-nginx flag detected)"
+        log "Skipping nginx startup (default; the CDP gateway owns 9223 - pass --with-nginx to restore the passthrough)"
         return 0
     fi
 }
@@ -91,10 +91,10 @@ start_nginx() {
 # Main execution
 main() {
     # Parse arguments
-    START_NGINX=true
+    START_NGINX=false
     for arg in "$@"; do
-        if [ "$arg" = "--no-nginx" ]; then
-            START_NGINX=false
+        if [ "$arg" = "--with-nginx" ]; then
+            START_NGINX=true
             break
         fi
     done

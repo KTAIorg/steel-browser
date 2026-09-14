@@ -177,10 +177,17 @@ export class SessionService {
       deviceConfig,
     });
 
+    // Precedence: explicit userDataDir wins; persist falls back to the
+    // built-in persistent directory; otherwise the env var or a temp dir.
+    // (Previously `options.userDataDir || options.persist === true` evaluated
+    // as a single condition, so a caller-provided userDataDir was ignored and
+    // silently replaced by the built-in path.)
     const userDataDir =
-      options.userDataDir || options.persist === true
+      options.userDataDir ||
+      (options.persist === true
         ? path.join(dirname(fileURLToPath(import.meta.url)), "..", "..", "user-data-dir")
-        : env.CHROME_USER_DATA_DIR || path.join(os.tmpdir(), "steel-chrome");
+        : env.CHROME_USER_DATA_DIR) ||
+      path.join(os.tmpdir(), "steel-chrome");
     await mkdir(userDataDir, { recursive: true });
 
     const defaultUserPreferences = {

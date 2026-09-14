@@ -1,0 +1,126 @@
+# KT fork image build → GHCR + container smoke test.
+# Action versions pinned to latest stable majors, verified 2026-09-14
+# (actions/checkout v7.0.1, docker/setup-buildx-action v4.3.0,
+#  docker/login-action v4.6.0, docker/build-push-action v7.3.0).
+name: kt-build-image
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      push_image:
+        description: "Push the built image to GHCR"
+        type: boolean
+        default: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ktaiorg/steel-browser
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4.3.0
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v4.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive image tags
+        id: meta
+        run: |
+          SHA12=$(echo "${{ github.sha }}" | cut -c1-12)
+          UPSTREAM_VERSION=$(node -p "require('./package.json').version")
+          VERSION="${UPSTREAM_VERSION}-kt1"
+          TAGS=""
+          PUSH="false"
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            PUSH="true"
+            TAGS="${REGISTRY}/${IMAGE_NAME}:${VERSION}"
+            TAGS="${TAGS},${REGISTRY}/${IMAGE_NAME}:sha-${SHA12}"
+            TAGS="${TAGS},${REGISTRY}/${IMAGE_NAME}:latest"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.push_image }}" = "true" ]; then
+            PUSH="true"
+            TAGS="${REGISTRY}/${IMAGE_NAME}:${VERSION}"
+            TAGS="${TAGS},${REGISTRY}/${IMAGE_NAME}:sha-${SHA12}"
+          else
+            TAGS="${REGISTRY}/${IMAGE_NAME}:pr-${{ github.event.number || github.run_number }}"
+          fi
+          echo "push=${PUSH}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "sha12=${SHA12}" >> "$GITHUB_OUTPUT"
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push image
+        id: build
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: .
+          file: ./Dockerfile
+          push: ${{ steps.meta.outputs.push == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          # provenance manifests have caused GHCR push 403s with org-level
+          # GITHUB_TOKEN in other KT repos; disable until verified here.
+          provenance: false
+          sbom: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  smoke:
+    # Container-level acceptance. Verifies all three gateway configurations:
+    # no CDP_TOKEN => the process refuses to start; CDP_TOKEN set => 401 without
+    # the token, session-scoped /json/list with a clean allowlist projection, and
+    # real WS handshakes on /devtools/browser and /devtools/page/<id>;
+    # CDP_ALLOW_ANONYMOUS=true => serves on container loopback only, unreachable
+    # through the published port. Assertions parse response bodies (see
+    # .github/scripts/kt-cdp-smoke.sh).
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4.3.0
+
+      - name: Build image locally
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: .
+          file: ./Dockerfile
+          load: true
+          tags: steel-browser-smoke:${{ github.sha }}
+          provenance: false
+          sbom: false
+          cache-from: type=gha
+
+      - name: Run CDP gateway smoke
+        env:
+          IMAGE: steel-browser-smoke:${{ github.sha }}
+        run: ./.github/scripts/kt-cdp-smoke.sh
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: |
+          for c in smoke-notoken smoke-token smoke-anon; do
+            echo "===== ${c} ====="
+            docker logs "${c}" 2>&1 || true
+          done

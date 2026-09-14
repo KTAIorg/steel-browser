@@ -1,5 +1,6 @@
 import { FastifyRequest } from "fastify";
 import { z } from "zod";
+import type { BrowserFingerprintWithHeaders } from "fingerprint-generator";
 import {
   ScrapeRequestBody,
   ScreenshotRequestBody,
@@ -24,6 +25,29 @@ export const SessionCredentials = z
   .partial()
   .optional()
   .describe("Configuration for session credentials");
+
+// Kept as a Zod-level shape; the HTTP layer enforces the structural
+// requirements via the JSON Schema zodToJsonSchema emits (refinements do not
+// survive that translation). The injection path dereferences
+// screen.{width,height,availWidth,availHeight,devicePixelRatio} (viewport comes
+// from avail*) and userAgent at launch, so all are required whenever a
+// fingerprint is supplied.
+const FingerprintSchema = z.object({
+  fingerprint: z
+    .object({
+      navigator: z.record(z.string(), z.any()),
+      screen: z.object({
+        width: z.number(),
+        height: z.number(),
+        availWidth: z.number(),
+        availHeight: z.number(),
+        devicePixelRatio: z.number(),
+      }),
+      userAgent: z.string(),
+    })
+    .required({ screen: true, userAgent: true }),
+  headers: z.record(z.string(), z.any()).optional(),
+});
 
 const CreateSession = z.object({
   sessionId: z.string().uuid().optional().describe("Unique identifier for the session"),
@@ -58,6 +82,9 @@ const CreateSession = z.object({
     .boolean()
     .optional()
     .describe("Flag to indicate if fingerprint injection should be skipped for this session."),
+  fingerprint: FingerprintSchema.optional().describe(
+    "Pre-generated browser fingerprint to inject for this session, in fingerprint-generator's BrowserFingerprintWithHeaders shape. Requires screen {width,height,availWidth,availHeight,devicePixelRatio} and userAgent (the viewport override reads avail*). When provided, automatic fingerprint generation is skipped and this value is used verbatim, letting callers pin a specific identity per session.",
+  ),
   deviceConfig: deviceConfigSchema,
   fullscreen: z
     .boolean()
