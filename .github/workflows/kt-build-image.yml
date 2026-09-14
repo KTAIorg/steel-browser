@@ -122,8 +122,8 @@ jobs:
           # The gateway starts after the browser launch inside onListen; wait
           # for port 9223 to accept connections before asserting.
           for i in $(seq 1 60); do
-            CODE=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:9223/json/list)
-            [ "$CODE" != "000" ] && break
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:9223/json/list || true)
+            [ "$CODE" != "000" ] && [ -n "$CODE" ] && break
             sleep 1
           done
           echo "-- /json/list without token (expect 401) --"
