@@ -91,10 +91,10 @@ start_nginx() {
 # Main execution
 main() {
     # Parse arguments
-    START_NGINX=true
+    START_NGINX=false
     for arg in "$@"; do
-        if [ "$arg" = "--no-nginx" ]; then
-            START_NGINX=false
+        if [ "$arg" = "--with-nginx" ]; then
+            START_NGINX=true
             break
         fi
     done

@@ -70,6 +70,12 @@ const envSchema = z.object({
     .default("false"),
   PROXY_INTERNAL_BYPASS: z.string().optional(),
   CHROME_USER_DATA_DIR: z.string().optional(),
+  CDP_TOKEN: z.string().optional(),
+  CDP_ALLOW_LOOPBACK_ONLY: z
+    .string()
+    .optional()
+    .transform((val) => val === "true" || val === "1")
+    .default("false"),
   LOG_STORAGE_ENABLED: z
     .string()
     .optional()

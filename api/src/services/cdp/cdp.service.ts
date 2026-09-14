@@ -913,7 +913,10 @@ export class CDPService extends EventEmitter {
 
         const dynamicArgs = [
           this.launchConfig.dimensions ? "" : "--start-maximized",
-          `--remote-debugging-address=${env.HOST}`,
+          // Bind the DevTools socket to loopback only. The public 9223 surface
+          // is served by the session-scoped CDPGateway; Chrome itself must not
+          // listen on a routable address.
+          `--remote-debugging-address=${env.CDP_ALLOW_LOOPBACK_ONLY ? "127.0.0.1" : env.HOST}`,
           "--remote-debugging-port=9222",
           `--window-size=${this.launchConfig.dimensions?.width ?? 1920},${
             this.launchConfig.dimensions?.height ?? 1080
